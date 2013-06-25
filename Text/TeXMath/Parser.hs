@@ -332,6 +332,7 @@ textOps = M.fromList
           , ("\\text",       EText TextNormal . parseText)
           , ("\\mbox",       EText TextNormal)
           , ("\\mathbf",     EText TextBold)
+          , ("\\boldsymbol", EText TextBold)
           , ("\\mathbfup",   EText TextBold)
           , ("\\textbf",     EText TextBold . parseText)
           , ("\\mathit",     EText TextItalic)
@@ -351,6 +352,7 @@ textOps = M.fromList
           , ("\\mathbffrak", EText TextBoldFraktur)
           , ("\\mathbfcal",  EText TextBoldScript)
           , ("\\mathsfit",   EText TextSansSerifItalic)
+          , ("\\operatorname", EText TextNormal)
           ]
 
 parseText :: String -> String

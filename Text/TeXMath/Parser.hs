@@ -83,9 +83,10 @@ formula = do
 
 expr :: TP Exp
 expr = do
-  optional (try $ symbol "\\displaystyle")
+  optional (ignored)
   a <- expr1
   limits <- limitsIndicator
+  optional (ignored)
   subSup limits a <|> superOrSubscripted limits a <|> return a
 
 limitsIndicator :: TP (Maybe Bool)
@@ -434,6 +435,34 @@ texSymbol = try $ do
   case M.lookup sym symbols of
        Just s   -> return s
        Nothing  -> pzero
+
+ignored :: TP ()
+ignored = ignoredCommand <|> ignoredUnary
+
+ignoredCommand :: TP ()
+ignoredCommand = try $ do
+    c <- command
+    unless (c `elem` ignoredCommands) pzero
+
+ignoredCommands :: [String]
+ignoredCommands = [ "\\notag"
+                  , "\\nonumber"
+                  , "\\displaystyle"
+                  ]
+
+ignoredUnary :: TP ()
+ignoredUnary = try $ do
+    c <- command
+    if c `elem` ignoredUnaryCommands
+       then do
+           _ <- texToken
+           return ()
+       else pzero
+
+ignoredUnaryCommands :: [String]
+ignoredUnaryCommands = [ "\\vphantom"
+                       , "\\hphantom"
+                       ]
 
 -- The lexer
 lexer :: P.TokenParser st

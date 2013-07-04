@@ -117,6 +117,7 @@ makeText a s = if trailingSp
         s' = withAttribute "mathvariant" attr $ unode "mtext" $ toUnicode a s 
         trailingSp = not (null s) && last s `elem` " \t"
         attr = case a of
+                    TextDefault      -> "normal"
                     TextNormal       -> "normal"
                     TextBold         -> "bold"
                     TextItalic       -> "italic"
@@ -188,7 +189,8 @@ showExp e =
    EStretchy x      -> makeStretchy $ showExp x
    EScaled s x      -> makeScaled s $ showExp x
    EArray as ls     -> makeArray as ls
-   EText a s        -> makeText a s
+   EText s          -> makeText TextNormal s
+   EFormat _ x      -> showExp x -- ToDo, support formatting
    x                -> error $ "showExp encountered " ++ show x
                        -- note: EUp, EDown, EDownup should be removed by handleDownup
 

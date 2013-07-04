@@ -56,14 +56,16 @@ data Exp =
   | EScaled String Exp
   | EStretchy Exp
   | EArray [Alignment] [ArrayLine]
-  | EText TextType String
+  | EText String
+  | EFormat TextType Exp
   deriving (Show, Read, Eq, Data, Typeable)
 
 data DisplayType = DisplayBlock
                  | DisplayInline
                  deriving Show
 
-data TextType = TextNormal
+data TextType = TextDefault
+              | TextNormal
               | TextBold
               | TextItalic
               | TextMonospace

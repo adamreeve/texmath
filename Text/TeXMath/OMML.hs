@@ -46,14 +46,14 @@ str :: [Element] -> String -> Element
 str props s = mnode "r" [ mnode "rPr" props
                         , mnode "t" s ]
 
-showBinary :: String -> Exp -> Exp -> Element
-showBinary c x y =
+showBinary :: TextType -> String -> Exp -> Exp -> Element
+showBinary format c x y =
   case c of
        "\\frac" -> mnode "f" [ mnode "fPr" $
                                 mnodeA "type" "bar" ()
                              , mnode "num" x'
                              , mnode "den" y']
-       "\\dfrac" -> showBinary "\\frac" x y
+       "\\dfrac" -> showBinary format "\\frac" x y
        "\\tfrac" -> mnode "f" [ mnode "fPr" $
                                  mnodeA "type" "lin" ()
                               , mnode "num" x'
@@ -77,17 +77,17 @@ showBinary c x y =
                                                , mnode "num" x'
                                                , mnode "den" y' ]] 
        _ -> error $ "Unknown binary operator " ++ c
-    where x' = showExp x
-          y' = showExp y
+    where x' = showExp' format x
+          y' = showExp' format y
 
-makeArray :: [Alignment] -> [ArrayLine] -> Element
-makeArray as rs = mnode "m" $ mProps : map toMr rs
+makeArray :: TextType -> [Alignment] -> [ArrayLine] -> Element
+makeArray format as rs = mnode "m" $ mProps : map toMr rs
   where mProps = mnode "mPr"
                   [ mnodeA "baseJc" "center" ()
                   , mnodeA "plcHide" "on" ()
                   , mnode "mcs" $ map toMc as' ]
         as'    = take (length rs) $ as ++ cycle [AlignDefault]
-        toMr r = mnode "mr" $ map (mnode "e" . concatMap showExp) r
+        toMr r = mnode "mr" $ map (mnode "e" . concatMap (showExp' format)) r
         toMc a = mnode "mc" $ mnode "mcPr"
                             $ mnodeA "mcJc" (toAlign a) ()
         toAlign AlignLeft    = "left"
@@ -98,6 +98,7 @@ makeArray as rs = mnode "m" $ mProps : map toMr rs
 makeText :: TextType -> String -> Element
 makeText a s = str attrs s
   where attrs = case a of
+                     TextDefault      -> []
                      TextNormal       -> [sty "p"]
                      TextBold         -> [sty "b"]
                      TextItalic       -> [sty "i"]
@@ -156,63 +157,67 @@ handleDownup dt (exp' : xs) =
 handleDownup _ []            = []
 
 showExp :: Exp -> [Element]
-showExp e =
+showExp = showExp' TextDefault
+
+showExp' :: TextType -> Exp -> [Element]
+showExp' format e =
  case e of
-   ENumber x        -> [str [] x]
-   EGrouped [EUnderover (ESymbol Op s) y z, w] -> [makeNary "undOvr" s y z w]
-   EGrouped [ESubsup (ESymbol Op s) y z, w] -> [makeNary "subSup" s y z w]
-   EGrouped xs      -> concatMap showExp xs
+   ENumber x        -> [makeText format x]
+   EGrouped [EUnderover (ESymbol Op s) y z, w] -> [makeNary format "undOvr" s y z w]
+   EGrouped [ESubsup (ESymbol Op s) y z, w] -> [makeNary format "subSup" s y z w]
+   EGrouped xs      -> concatMap (showExp' format) xs
    EDelimited start end xs ->
                        [mnode "d" [ mnode "dPr"
                                     [ mnodeA "begChr" start ()
                                     , mnodeA "endChr" end ()
                                     , mnode "grow" () ]
-                                  , mnode "e" $ concatMap showExp xs
+                                  , mnode "e" $ concatMap (showExp' format) xs
                                   ] ]
 
-   EIdentifier x    -> [str [] x]
+   EIdentifier x    -> [makeText format x]
    EMathOperator x  -> [makeText TextNormal x]
-   EStretchy x      -> showExp x  -- no support for stretchy in OMML
-   ESymbol _ x      -> [str [] x]
-   ESpace "0.167em" -> [str [] "\x2009"]
-   ESpace "0.222em" -> [str [] "\x2005"]
-   ESpace "0.278em" -> [str [] "\x2004"]
-   ESpace "0.333em" -> [str [] "\x2004"]
-   ESpace "1em"     -> [str [] "\x2001"]
-   ESpace "2em"     -> [str [] "\x2001\x2001"]
+   EStretchy x      -> showExp' format x  -- no support for stretchy in OMML
+   ESymbol _ x      -> [makeText format x]
+   ESpace "0.167em" -> [makeText format "\x2009"]
+   ESpace "0.222em" -> [makeText format "\x2005"]
+   ESpace "0.278em" -> [makeText format "\x2004"]
+   ESpace "0.333em" -> [makeText format "\x2004"]
+   ESpace "1em"     -> [makeText format "\x2001"]
+   ESpace "2em"     -> [makeText format "\x2001\x2001"]
    ESpace _         -> [] -- this is how the xslt sheet handles all spaces
-   EBinary c x y    -> [showBinary c x y]
+   EBinary c x y    -> [showBinary format c x y]
    EUnder x (ESymbol Accent [c]) | isBarChar c ->
                        [mnode "bar" [ mnode "barPr" $
                                         mnodeA "pos" "bot" ()
-                                    , mnode "e" $ showExp x ]]
+                                    , mnode "e" $ showExp' format x ]]
    EOver x (ESymbol Accent [c]) | isBarChar c ->
                        [mnode "bar" [ mnode "barPr" $
                                         mnodeA "pos" "top" ()
-                                    , mnode "e" $ showExp x ]]
+                                    , mnode "e" $ showExp' format x ]]
    EOver x (ESymbol Accent y) ->
                        [mnode "acc" [ mnode "accPr" $
                                         mnodeA "chr" y ()
-                                    , mnode "e" $ showExp x ]]
-   ESub x y         -> [mnode "sSub" [ mnode "e" $ showExp x
-                                     , mnode "sub" $ showExp y]]
-   ESuper x y       -> [mnode "sSup" [ mnode "e" $ showExp x
-                                     , mnode "sup" $ showExp y]]
-   ESubsup x y z    -> [mnode "sSubSup" [ mnode "e" $ showExp x
-                                        , mnode "sub" $ showExp y
-                                        , mnode "sup" $ showExp z]]
-   EUnder x y       -> [mnode "limLow" [ mnode "e" $ showExp x
-                                       , mnode "lim" $ showExp y]]
-   EOver x y        -> [mnode "limUpp" [ mnode "e" $ showExp x
-                                       , mnode "lim" $ showExp y]]
-   EUnderover x y z -> showExp (EUnder x (EOver y z))
+                                    , mnode "e" $ showExp' format x ]]
+   ESub x y         -> [mnode "sSub" [ mnode "e" $ showExp' format x
+                                     , mnode "sub" $ showExp' format y]]
+   ESuper x y       -> [mnode "sSup" [ mnode "e" $ showExp' format x
+                                     , mnode "sup" $ showExp' format y]]
+   ESubsup x y z    -> [mnode "sSubSup" [ mnode "e" $ showExp' format x
+                                        , mnode "sub" $ showExp' format y
+                                        , mnode "sup" $ showExp' format z]]
+   EUnder x y       -> [mnode "limLow" [ mnode "e" $ showExp' format x
+                                       , mnode "lim" $ showExp' format y]]
+   EOver x y        -> [mnode "limUpp" [ mnode "e" $ showExp' format x
+                                       , mnode "lim" $ showExp' format y]]
+   EUnderover x y z -> showExp' format (EUnder x (EOver y z))
    EUnary "\\sqrt" x  -> [mnode "rad" [ mnode "radPr" $ mnodeA "degHide" "on" ()
                                       , mnode "deg" ()
-                                      , mnode "e" $ showExp x]]
-   EUnary "\\surd" x  -> showExp $ EUnary "\\sqrt" x
-   EScaled _ x      -> showExp x   -- no support for scaler?
-   EArray as ls     -> [makeArray as ls]
-   EText a s        -> [makeText a s]
+                                      , mnode "e" $ showExp' format x]]
+   EUnary "\\surd" x  -> showExp' format $ EUnary "\\sqrt" x
+   EScaled _ x      -> showExp' format x  -- no support for scaler?
+   EArray as ls     -> [makeArray format as ls]
+   EText s          -> [makeText format s]
+   EFormat a x      -> showExp' a x
    x                -> error $ "showExp encountered " ++ show x
    -- note: EUp, EDown, EDownup should be removed by handleDownup
 
@@ -223,8 +228,8 @@ isNary :: Exp -> Bool
 isNary (ESymbol Op _) = True
 isNary _ = False
 
-makeNary :: String -> String -> Exp -> Exp -> Exp -> Element
-makeNary t s y z w =
+makeNary :: TextType -> String -> String -> Exp -> Exp -> Exp -> Element
+makeNary format t s y z w =
   mnode "nary" [ mnode "naryPr"
                  [ mnodeA "chr" s ()
                  , mnodeA "limLoc" t ()
@@ -233,7 +238,7 @@ makeNary t s y z w =
                  , mnodeA "supHide"
                     (if y == EGrouped [] then "on" else "off") ()
                  ]
-               , mnode "e" $ showExp w
-               , mnode "sub" $ showExp y
-               , mnode "sup" $ showExp z ]
+               , mnode "e" $ showExp' format w
+               , mnode "sub" $ showExp' format y
+               , mnode "sup" $ showExp' format z ]
 

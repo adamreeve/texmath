@@ -57,6 +57,7 @@ expr1 =  choice [
   , number
   , texSymbol
   , text
+  , format
   , root
   , unary
   , binary
@@ -324,36 +325,15 @@ command = try $ char '\\' >> liftM ('\\':) (identifier <|> lexeme (count 1 anyCh
 unaryOps :: [String]
 unaryOps = ["\\sqrt", "\\surd"]
 
--- Note: cal and scr are treated the same way, as unicode is lacking such two different sets for those.
 textOps :: M.Map String (String -> Exp)
 textOps = M.fromList
-          [ ("\\textrm",     EText TextNormal . parseText)
-          , ("\\mathrm",     EText TextNormal)
-          , ("\\mathup",     EText TextNormal)
-          , ("\\text",       EText TextNormal . parseText)
-          , ("\\mbox",       EText TextNormal)
-          , ("\\mathbf",     EText TextBold)
-          , ("\\boldsymbol", EText TextBold)
-          , ("\\mathbfup",   EText TextBold)
-          , ("\\textbf",     EText TextBold . parseText)
-          , ("\\mathit",     EText TextItalic)
-          , ("\\textit",     EText TextItalic . parseText)
-          , ("\\mathtt",     EText TextMonospace)
-          , ("\\texttt",     EText TextMonospace)
-          , ("\\mathsf",     EText TextSansSerif)
-          , ("\\mathsfup",   EText TextSansSerif)
-          , ("\\mathbb",     EText TextDoubleStruck)
-          , ("\\mathcal",    EText TextScript)
-          , ("\\mathscr",    EText TextScript)
-          , ("\\mathfrak",   EText TextFraktur)
-          , ("\\mathbfit",   EText TextBoldItalic)
-          , ("\\mathbfsfup", EText TextBoldSansSerif)
-          , ("\\mathbfsfit", EText TextBoldSansSerifItalic)
-          , ("\\mathbfscr",  EText TextBoldScript)
-          , ("\\mathbffrak", EText TextBoldFraktur)
-          , ("\\mathbfcal",  EText TextBoldScript)
-          , ("\\mathsfit",   EText TextSansSerifItalic)
-          , ("\\operatorname", EText TextNormal)
+          [ ("\\textrm",       EFormat TextNormal . EText . parseText)
+          , ("\\text",         EFormat TextNormal . EText . parseText)
+          , ("\\textbf",       EFormat TextBold . EText . parseText)
+          , ("\\textit",       EFormat TextItalic . EText . parseText)
+          , ("\\texttt",       EFormat TextMonospace . EText)
+          , ("\\operatorname", EFormat TextNormal . EText . parseText)
+          , ("\\mbox",         EFormat TextNormal . EText . parseText)
           ]
 
 parseText :: String -> String
@@ -366,6 +346,38 @@ parseText ('\\':'l':'d':'o':'t':'s':xs) = '\x2026' : parseText xs
 parseText ('~':xs) = '\xA0' : parseText xs
 parseText (x:xs) = x : parseText xs
 parseText [] = []
+
+format :: TP Exp
+format = try $ do
+  c <- command
+  case M.lookup c formatOps of
+       Just r  -> liftM r texToken
+       Nothing -> pzero
+
+-- Note: cal and scr are treated the same way, as unicode is lacking such two different sets for those.
+formatOps :: M.Map String (Exp -> Exp)
+formatOps = M.fromList
+          [ ("\\mathrm",       EFormat TextNormal)
+          , ("\\mathup",       EFormat TextNormal)
+          , ("\\mathbf",       EFormat TextBold)
+          , ("\\boldsymbol",   EFormat TextBold)
+          , ("\\mathbfup",     EFormat TextBold)
+          , ("\\mathit",       EFormat TextItalic)
+          , ("\\mathtt",       EFormat TextMonospace)
+          , ("\\mathsf",       EFormat TextSansSerif)
+          , ("\\mathsfup",     EFormat TextSansSerif)
+          , ("\\mathbb",       EFormat TextDoubleStruck)
+          , ("\\mathcal",      EFormat TextScript)
+          , ("\\mathscr",      EFormat TextScript)
+          , ("\\mathfrak",     EFormat TextFraktur)
+          , ("\\mathbfit",     EFormat TextBoldItalic)
+          , ("\\mathbfsfup",   EFormat TextBoldSansSerif)
+          , ("\\mathbfsfit",   EFormat TextBoldSansSerifItalic)
+          , ("\\mathbfscr",    EFormat TextBoldScript)
+          , ("\\mathbffrak",   EFormat TextBoldFraktur)
+          , ("\\mathbfcal",    EFormat TextBoldScript)
+          , ("\\mathsfit",     EFormat TextSansSerifItalic)
+          ]
 
 diacritical :: TP Exp
 diacritical = try $ do
